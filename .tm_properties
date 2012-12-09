@@ -1,0 +1,8 @@
+TM_PYTHON = "/Users/fish/Praxa/colorkit/bin/python"
+TM_PYTHONPATH = ".:/Users/fish/Praxa/colorkit/lib/python2.7/site-packages:/Users/fish/Praxa/colorkit/local/lib/python2.7/site-packages:/Users/fish/Praxa/colorkit/instance/colorkit:/Users/fish/Praxa/colorkit/instance:/Users/fish/Praxa/colorkit/lib/python2.7/site-packages:/Users/fish/Praxa/colorkit"
+PYTHONPATH = ".:/Users/fish/Praxa/colorkit/lib/python2.7/site-packages:/Users/fish/Praxa/colorkit/local/lib/python2.7/site-packages:/Users/fish/Praxa/colorkit/instance/colorkit:/Users/fish/Praxa/colorkit/instance:/Users/fish/Praxa/colorkit/lib/python2.7/site-packages:/Users/fish/Praxa/colorkit"
+DJANGO_SETTINGS_MODULE = "settings"
+
+[*.*]
+windowTitle = "colorkit • $TM_DISPLAYNAME"
+
