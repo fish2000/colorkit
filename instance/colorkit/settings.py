@@ -9,14 +9,23 @@ import os
 virtualpath = lambda *pths: os.path.join('/Users/fish/Praxa/colorkit', *pths)
 
 DATABASES = {
+
     'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'colorkit',
+        'USER': 'jangy',
+        'PASSWORD': 'eatshit',
+        'HOST': '',
+        'PORT': '',
+        'OPTIONS': dict(autocommit=True), },
+
+    'sqlite_local': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': virtualpath('var', 'db', 'dev.db'),
         'USER': '',
         'PASSWORD': '',
         'HOST': '',
-        'PORT': '',
-    }
+        'PORT': '', }
 }
 
 CACHES = {
@@ -105,6 +114,8 @@ INSTALLED_APPS = (
     #'django_nose',
     #'imagekit',
     'signalqueue',
+    
+    'colordb',
 )
 
 LOGGING = {
