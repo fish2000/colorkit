@@ -1611,9 +1611,9 @@ class TextDescriptionType(ICCProfileTag, ADict): # ICC v2
             if tagData[unicodeOffset + 8 + 
                        unicodeDescriptionLength:unicodeOffset + 8 + 
                        unicodeDescriptionLength + 2] == "\0\0":
-                safe_print("Warning (non-critical): '%s' Unicode part "
-                           "seems to be a single-byte string (double-byte "
-                           "string expected)" % tagData[:4])
+                #safe_print("Warning (non-critical): '%s' Unicode part "
+                #           "seems to be a single-byte string (double-byte "
+                #           "string expected)" % tagData[:4])
                 charBytes = 1 # fix for fubar'd desc
             else:
                 charBytes = 2
@@ -2299,7 +2299,9 @@ class chromaticAdaptionTag(colormath.Matrix3x3, s15Fixed16ArrayType):
 
 
 class NamedColor2Value(object):
-    def __init__(self, valueData, deviceCoordCount, pcs="XYZ"):
+    
+    def __init__(self, valueData="\0" * 38, deviceCoordCount=0, pcs="XYZ"):
+        self._pcsname = pcs
         self.rootName = valueData[0:32]
         pcsvalues = [
             uInt16Number(valueData[32:34]),
@@ -2394,7 +2396,7 @@ class NamedColor2Type(ICCProfileTag, OrderedDict):
     
     REPR_OUTPUT_SIZE = 10
     
-    def __init__(self, tagData=None, tagSignature=None, pcs=None):
+    def __init__(self, tagData="\0" * 84, tagSignature=None, pcs=None):
         ICCProfileTag.__init__(self, tagData, tagSignature)
         OrderedDict.__init__(self)
         
@@ -2407,12 +2409,13 @@ class NamedColor2Type(ICCProfileTag, OrderedDict):
         self.deviceCoordCount = deviceCoordCount
         self._prefix = Text(tagData[20:52])
         self._suffix = Text(tagData[52:84])
+        self._pcsname = pcs
         
+        keys = []
+        values = []
         if colorCount > 0:
             start = 84
             end = start + (stride*colorCount)
-            keys = []
-            values = []
             for i in xrange(start, end, stride):
                 nc2 = NamedColor2Value(
                     tagData[i:i+stride],
@@ -2436,6 +2439,42 @@ class NamedColor2Type(ICCProfileTag, OrderedDict):
     def colorValues(self):
         return NamedColor2ValueTuple(self.values())
     
+    def add_color(self, rootName, *deviceCoordinates, **pcsCoordinates):
+        if self._pcsname == "Lab":
+            keys = ["L", "a", "b"]
+        elif self._pcsname == "XYZ":
+            keys = ["X", "Y", "Z"]
+        
+        if not set(pcsCoordinates.keys()).issuperset(set(keys)):
+            raise ICCProfileInvalidError("Can't add namedColor2 without all 3 PCS coordinates: '%s'" %
+                set(keys) - set(pcsCoordinates.keys()))
+        
+        if len(deviceCoordinates) != self.deviceCoordCount:
+            raise ICCProfileInvalidError("Can't add namedColor2 without all %s device coordinates (called with %s)" % (
+                self.deviceCoordCount, len(deviceCoordinates)))
+        
+        nc2value = NamedColor2Value()
+        nc2value._pcsname = self._pcsname
+        nc2value.rootName = rootName
+        
+        if rootName in self.keys():
+            raise ICCProfileInvalidError("Can't add namedColor2 with existant name: '%s'" % rootName)
+        
+        nc2value.device = tuple(copy(deviceCoordinates))
+        nc2value.pcs = AODict(copy(pcsCoordinates))
+        pcsvalues = list()
+        
+        for idx, key in enumerate(keys):
+            val = nc2value.pcs[key]
+            if key == "L":
+                nc2value.pcsvalues[idx] = val * 65536 / 100.0
+            elif key in ("a", "b"):
+                nc2value.pcsvalues[idx] = (val * 65536 / 255.0) + 128
+            elif key in ("X", "Y", "Z"):
+                nc2value.pcsvalues[idx] = val * 32768 / 100.00
+        
+        self[nc2value.name] = nc2value
+    
     def __repr__(self):
         data = self.items()[:self.REPR_OUTPUT_SIZE + 1]
         if len(data) > self.REPR_OUTPUT_SIZE:
@@ -2449,7 +2488,7 @@ class NamedColor2Type(ICCProfileTag, OrderedDict):
         def fget(self):
             tagData = ["ncl2", "\0" * 4,
                 self.vendorData,
-                uInt32Number_tohex(self.colorCount),
+                uInt32Number_tohex(len(self.items())),
                 uInt32Number_tohex(self.deviceCoordCount),
                 self._prefix.ljust(32), self._suffix.ljust(32)]
             tagData.append(self.colorValues.tagData)

@@ -80,10 +80,11 @@ def read(stream, size=-1):
 def write(stream, data):
     """ Write to stream. Uses os.write() if stream is a tty, 
     stream.write() otherwise. """
-    if stream.isatty():
-        os.write(stream.fileno(), data)
-    else:
-        stream.write(data)
+    stream.write(data)
+    #if stream.isatty():
+    #    os.write(stream.fileno(), data)
+    #else:
+    #    stream.write(data)
 
 
 class EncodedStream(object):

@@ -20,7 +20,7 @@ def ColorType(name, *args, **kwargs):
     ndtype = dtype.name
     if name not in color_types[ndtype].keys():
         __channels__ = channels = split_abbreviations(name)
-        print "*** %s" % name
+        #print "*** %s" % name
         if not len(channels) > 0:
             raise InvalidColorTypeString("""
                 ColorType() called without a format string
@@ -68,7 +68,7 @@ def ColorType(name, *args, **kwargs):
             def __hash__(self):
                 return sum(map(
                     lambda chn: chn[1]*(256**chn[0]),
-                    zip(reversed(xrange(len(self))), self)))
+                    zip(xrange(len(self)), self)))
             
             def __int__(self):
                 return int(hash(self))
@@ -100,13 +100,15 @@ def ColorType(name, *args, **kwargs):
                 return '0%0o' % hash(self)
             
             def __hex__(self):
-                return '0x%0X' % hash(self)
+                return ''.join(['0x%0', str(len(__channels__)*2), 'X']) % hash(self)
             
             def __str__(self):
-                return '#%0X' % hash(self)
+                return ''.join(['#%0', str(len(__channels__)*2), 'X']) % hash(self)
+                #return ('#%%0 %iX' % len(self)*2) % hash(self)
             
             def __unicode__(self):
-                return u'#%0X' % hash(self)
+                return u''.join([u'#%0', unicode(len(__channels__)*2), u'X']) % hash(self)
+                #return (u'#%%0 %iX' % len(self)*2) % hash(self)
             
             def __array_interface__(self):
                 """ Many more details available:
@@ -174,10 +176,6 @@ def main():
     print "numpy.array(rgb): %s" % numpy.array(rgb2)
     print "numpy.array(rgb).dtype: %s" % numpy.array(rgb2).dtype
     print "numpy.array(rgb).shape: %s" % numpy.array(rgb2).shape
-    print "numpy.ndarray((3,), buffer=rgb): %s" % numpy.ndarray((3,), buffer=rgb)
-    print "numpy.ndarray((3,), buffer=rgb).dtype: %s" % numpy.ndarray((3,), buffer=rgb).dtype
-    print "numpy.ndarray((3,), buffer=rgb).shape: %s" % str(numpy.ndarray((3,), buffer=rgb).shape)
-    
 
 if __name__ == '__main__':
     main()
