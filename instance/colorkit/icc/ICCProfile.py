@@ -9,6 +9,7 @@ import os
 import re
 import struct
 import sys
+from copy import copy
 from itertools import izip, imap
 from time import localtime, mktime, strftime
 from UserString import UserString
@@ -314,9 +315,7 @@ tags = {"A2B0": "Device to PCS: Intent 0",
         "lumi": "Luminance",
         "meas": "Measurement type",
         "mmod": "Make and model",
-        
         "ncl2": "Named color (2)",
-        
         "rTRC": "Red tone response curve",
         "rXYZ": "Red matrix column",
         "targ": "Characterization target",
@@ -2300,17 +2299,13 @@ class chromaticAdaptionTag(colormath.Matrix3x3, s15Fixed16ArrayType):
 
 
 class NamedColor2Value(object):
-    def __init__(self, valueData, deviceCoordCount, pcs="XYZ", prefix=u"", suffix=u""):
-        
-        self.rootName = unicode(Text(valueData[0:32].strip('\0')), 'latin-1')
-        self.prefix = prefix
-        self.suffix = suffix
-        self.valueData = valueData
-        
+    def __init__(self, valueData, deviceCoordCount, pcs="XYZ"):
+        self.rootName = valueData[0:32]
         pcsvalues = [
             uInt16Number(valueData[32:34]),
             uInt16Number(valueData[34:36]),
             uInt16Number(valueData[36:38])]
+        self.pcsvalues = copy(pcsvalues)
         
         for i, pcsvalue in enumerate(pcsvalues):
             if pcs == "Lab":
@@ -2337,7 +2332,7 @@ class NamedColor2Value(object):
     
     @property
     def name(self):
-        return self.prefix + self.rootName + self.suffix
+        return unicode(Text(self.rootName.strip('\0')), 'latin-1')
     
     def __repr__(self):
         pcs = []
@@ -2354,12 +2349,16 @@ class NamedColor2Value(object):
     
     @Property
     def tagData():
-        doc = """
-        Return raw tag data.
-        """
+        doc = """ Return raw tag data. """
         
         def fget(self):
-            return self.valueData
+            valueData = []
+            valueData.append(self.rootName.ljust(32))
+            valueData.extend(
+                [uInt16Number_tohex(pcsval) for pcsval in self.pcsvalues])
+            valueData.extend(
+                [uInt16Number_tohex(pcsval) for deviceval in self.device])
+            return "".join(valueData)
         
         def fset(self, tagData):
             pass
@@ -2380,9 +2379,7 @@ class NamedColor2ValueTuple(tuple):
     
     @Property
     def tagData():
-        doc = """
-        Return raw tag data.
-        """
+        doc = """ Return raw tag data. """
         
         def fget(self):
             return "".join([val.tagData for val in self])
@@ -2391,51 +2388,70 @@ class NamedColor2ValueTuple(tuple):
             pass
         
         return locals()
-    
-    
 
-class NamedColor2Type(ICCProfileTag, ADict):
 
+class NamedColor2Type(ICCProfileTag, OrderedDict):
+    
+    REPR_OUTPUT_SIZE = 10
+    
     def __init__(self, tagData=None, tagSignature=None, pcs=None):
-        
         ICCProfileTag.__init__(self, tagData, tagSignature)
+        OrderedDict.__init__(self)
+        
         colorCount = uInt32Number(tagData[12:16])
         deviceCoordCount = uInt32Number(tagData[16:20])
         stride = 38 + 2*deviceCoordCount
-        values = []
         
-        self.update({
-            "vendorData": tagData[8:12],
-            "colorCount": colorCount,
-            "deviceCoordCount": deviceCoordCount,
-            "prefix": unicode(Text(tagData[20:52].strip('\0')), 'latin-1'),
-            "suffix": unicode(Text(tagData[52:84].strip('\0')), 'latin-1'),
-        })
+        self.vendorData = tagData[8:12]
+        self.colorCount = colorCount
+        self.deviceCoordCount = deviceCoordCount
+        self._prefix = Text(tagData[20:52])
+        self._suffix = Text(tagData[52:84])
         
         if colorCount > 0:
-            for i in xrange(84,
-                (stride*colorCount),
-                stride):
-                values.append(
-                    NamedColor2Value(
-                        tagData[i:i+stride],
-                        deviceCoordCount,
-                        pcs=pcs, prefix=self.prefix, suffix=self.suffix))
-        self.colorValues = NamedColor2ValueTuple(values)
+            start = 84
+            end = start + (stride*colorCount)
+            keys = []
+            values = []
+            for i in xrange(start, end, stride):
+                nc2 = NamedColor2Value(
+                    tagData[i:i+stride],
+                    deviceCoordCount, pcs=pcs)
+                keys.append(nc2.name)
+                values.append(nc2)
+        self.update(OrderedDict(zip(keys, values)))
+    
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+    
+    @property
+    def prefix(self):
+        return unicode(self._prefix.strip('\0'), 'latin-1')
+    
+    @property
+    def suffix(self):
+        return unicode(self._suffix.strip('\0'), 'latin-1')
+    
+    @property
+    def colorValues(self):
+        return NamedColor2ValueTuple(self.values())
+    
+    def __repr__(self):
+        data = self.items()[:self.REPR_OUTPUT_SIZE + 1]
+        if len(data) > self.REPR_OUTPUT_SIZE:
+            data[-1] = ('...', "(remaining elements truncated)")
+        return repr(OrderedDict(data))
     
     @Property
     def tagData():
-        doc = """
-        Return raw tag data.
-        """
+        doc = """ Return raw tag data. """
         
         def fget(self):
             tagData = ["ncl2", "\0" * 4,
                 self.vendorData,
                 uInt32Number_tohex(self.colorCount),
-                uInt32Number_tohex(self.deviceCoordCount)]
-                #self.prefix, self.suffix]
-            
+                uInt32Number_tohex(self.deviceCoordCount),
+                self._prefix.ljust(32), self._suffix.ljust(32)]
             tagData.append(self.colorValues.tagData)
             return "".join(tagData)
         
@@ -2459,9 +2475,7 @@ typeSignature2Type = {
     "meas": MeasurementType,
     "mluc": MultiLocalizedUnicodeType,  # ICC v4
     "mmod": MakeAndModelType,  # Apple private tag
-    
     "ncl2": NamedColor2Type,
-    
     "sf32": s15Fixed16ArrayType,
     "sig ": SignatureType,
     "text": TextType,
@@ -3100,6 +3114,24 @@ class ICCProfile:
                         if country.strip("\0 "):
                             country = "/" + country
                         info["    %s%s" % (language, country)] = value
+            elif isinstance(tag, NamedColor2Type):
+                info[name] = ""
+                info["    Device (Native) Coordinates"] = "%i per value" % (
+                    tag.deviceCoordCount,)
+                info["    Contents"] = "%i colors (%i bytes) " % (
+                    tag.colorCount, len(tag.tagData))
+                i = 1
+                for k, v in tag.iteritems():
+                    pcsout = devout = " "
+                    for kk, vv in v.pcs.iteritems():
+                        pcsout += "%2s = %06.6f" % (kk, vv)
+                    for vv in v.device:
+                        devout += "%i\t" % vv
+                    info["         %03s %s%s%s" % (
+                        i, tag.prefix, k, tag.suffix)] = "   (PCS) %40s\t(DEV) %s" % (
+                            pcsout, devout)
+                    i += 1
+                
             elif isinstance(tag, Text):
                 if sig == "cprt":
                     info[name] = unicode(tag)
