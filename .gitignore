@@ -28,7 +28,6 @@ build/
 dist/
 sdist/
 include/
-instance/Django-*
 logs/
 man/
 share/
