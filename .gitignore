@@ -22,7 +22,8 @@
 
 Icon*
 
-etc/
+*.conf
+
 build/
 dist/
 sdist/
