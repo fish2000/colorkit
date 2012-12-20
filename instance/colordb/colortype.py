@@ -8,7 +8,6 @@ Copyright (c) 2012 Objects In Space And Time, LLC. All rights reserved.
 """
 
 import numpy
-#from os.path import join
 from collections import namedtuple, defaultdict
 from colordb.utils import split_abbreviations
 from colordb.exceptions import InvalidColorTypeString
@@ -21,12 +20,13 @@ def ColorType(name, *args, **kwargs):
     ndtype = dtype.name
     if name not in color_types[ndtype].keys():
         __channels__ = channels = split_abbreviations(name)
+        print "*** %s" % name
         if not len(channels) > 0:
             raise InvalidColorTypeString("""
                 ColorType() called without a format string
                 specifying at least one channel (as a capital letter).""")
         
-        class Color(namedtuple(name, channels, dtype)):
+        class Color(namedtuple(name, " ".join(channels))):
             
             __slots__ = ()
             
@@ -36,15 +36,11 @@ def ColorType(name, *args, **kwargs):
                         ['%s=%s' % (i[0], i[1]) \
                             for i in self._asdict().items()]))
             
-            def __str__(self):
-                return str(repr(self))
-            
-            def __unicode__(self):
-                return unicode(str(self))
-            
             def __doc__(self):
                 return """
-                %(clsname)s(%(channels)s) returns %(upperclsname)s %(length)s-channel color object initialized with the named values.
+                %(clsname)s(%(channels)s):
+                Returns a set of %(upperclsname)s-space coordinates as a dtyped %(length)s-channel vector,
+                representing one unique (pseudo-`const`) %(upperclsname)s value.
                 """ % {
                     'clsname': name,
                     'upperclsname': name,
@@ -62,33 +58,127 @@ def ColorType(name, *args, **kwargs):
                 return self
             
             @property
+            def name(self):
+                return self.__class__.__name__
+            
+            @property
             def dtype(self):
                 return self.__dtype__
             
-            def __eq__(self, other):
+            def __hash__(self):
+                return sum(map(
+                    lambda chn: chn[1]*(256**chn[0]),
+                    zip(reversed(xrange(len(self))), self)))
+            
+            def __int__(self):
+                return int(hash(self))
+            
+            def __long__(self):
+                return long(int(self))
+            
+            def __float__(self):
+                return float(int(self))
+            
+            def __old_eq__(self, other):
                 if not len(other) == len(self):
                     return False
                 return all([self[i] == other[i] \
                     for i in xrange(len(self))])
             
-            def __hash__(self):
-                return sum(map(
-                    lambda chn: chn[1]*(256**chn[0]),
-                    zip(reversed(
-                        xrange(len(self))), self)))
+            def __eq__(self, other):
+                return (hash(self) == hash(other)) and \
+                    (self.name == other.name)
+            
+            def __ne__(self, other):
+                return (hash(self) != hash(other)) or \
+                    (self.name != other.name)
+            
+            def __nonzero__(self):
+                return numpy.any(self)
+            
+            def __oct__(self):
+                return '0%0o' % hash(self)
+            
+            def __hex__(self):
+                return '0x%0X' % hash(self)
+            
+            def __str__(self):
+                return '#%0X' % hash(self)
+            
+            def __unicode__(self):
+                return u'#%0X' % hash(self)
             
             def __array_interface__(self):
                 """ Many more details available:
                     http://docs.scipy.org/doc/numpy/reference/arrays.interface.html#python-side """
                 return dict(
                     version=3,
+                    data=(id(self), True),
                     shape=(len(__channels__),),
-                    typestr='|V%s' % len(self.__channels__),
-                    descr=[(channel, self.dtype.str) for channel in __channels__])
+                    typestr='%s%s%s' % (
+                        self.dtype.byteorder,
+                        self.dtype.kind,
+                        self.dtype.itemsize),
+                    descr=[(channel, self.dtype.str) \
+                        for channel in __channels__])
         
         Color.__name__ = name
         Color.__dtype__ = dtype
         color_types[ndtype][name] = Color
+        return Color
     
     return color_types[ndtype][name]
+
+
+def main():
+    RGB = ColorType('RGB', dtype=numpy.dtype('uint8'))
+    rgb = RGB(235, 21, 12)
+    rgb2 = RGB(235, 21, 12)
+    notrgb = RGB(66, 6, 66)
+    
+    
+    print "rgb:"
+    print rgb
+    print "hash(rgb): %s" % hash(rgb)
+    print "repr(rgb): %s" % repr(rgb)
+    print "str(rgb): %s" % str(rgb)
+    print "unicode(rgb): %s" % unicode(rgb)
+    print "int(rgb): %s" % int(rgb)
+    print "long(rgb): %s" % long(rgb)
+    print "float(rgb): %s" % float(rgb)
+    print "oct(rgb): %s" % oct(rgb)
+    print "hex(rgb): %s" % hex(rgb)
+    
+    print ""
+    print "RGB.__name__: %s" % RGB.__name__
+    print "RGB.__dtype__: %s" % RGB.__dtype__
+    print "rgb.__dtype__: %s" % rgb.__dtype__
+    print "rgb.name: %s" % rgb.name
+    print "rgb.dtype: %s" % rgb.dtype
+    
+    print ""
+    print "rgb == rgb2: %s" % (rgb == rgb2)
+    print "rgb == notrgb: %s" % (rgb == notrgb)
+    print "rgb != rgb2: %s" % (rgb != rgb2)
+    print "rgb != notrgb: %s" % (rgb != notrgb)
+    
+    print ""
+    print "rgb.__doc__(): "
+    print rgb.__doc__()
+    
+    print ""
+    print "rgb.__array_interface__(): %s" % rgb.__array_interface__()
+    print "numpy.asarray(rgb): %s" % numpy.asarray(rgb2)
+    print "numpy.asarray(rgb).dtype: %s" % numpy.asarray(rgb2).dtype
+    print "numpy.asarray(rgb).shape: %s" % numpy.asarray(rgb2).shape
+    print "numpy.array(rgb): %s" % numpy.array(rgb2)
+    print "numpy.array(rgb).dtype: %s" % numpy.array(rgb2).dtype
+    print "numpy.array(rgb).shape: %s" % numpy.array(rgb2).shape
+    print "numpy.ndarray((3,), buffer=rgb): %s" % numpy.ndarray((3,), buffer=rgb)
+    print "numpy.ndarray((3,), buffer=rgb).dtype: %s" % numpy.ndarray((3,), buffer=rgb).dtype
+    print "numpy.ndarray((3,), buffer=rgb).shape: %s" % str(numpy.ndarray((3,), buffer=rgb).shape)
+    
+
+if __name__ == '__main__':
+    main()
 
