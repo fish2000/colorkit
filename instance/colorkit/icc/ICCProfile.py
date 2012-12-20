@@ -2301,8 +2301,7 @@ class chromaticAdaptionTag(colormath.Matrix3x3, s15Fixed16ArrayType):
 
 class NamedColor2Value(object):
     def __init__(self, valueData, deviceCoordCount, pcs="XYZ", prefix=u"", suffix=u""):
-        if debug:
-            print "\t ncl2 %s value (%s device coords)" % (pcs, deviceCoordCount)
+        
         self.rootName = unicode(Text(valueData[0:32].strip('\0')), 'latin-1')
         self.prefix = prefix
         self.suffix = suffix
@@ -2311,11 +2310,6 @@ class NamedColor2Value(object):
             uInt16Number(valueData[32:34]),
             uInt16Number(valueData[34:36]),
             uInt16Number(valueData[36:38])]
-        
-        if debug:
-            print "\t ncl2 value has name %s" % self.rootName
-            for i in xrange(len(pcsvalues)):
-                print "\t ncl2 %s value [%s]: %s" % (pcs, i, pcsvalues[i])
         
         for i, pcsvalue in enumerate(pcsvalues):
             if pcs == "Lab":
@@ -2332,15 +2326,9 @@ class NamedColor2Value(object):
                 pcsvalues[i] = pcsvalue / 32768.0 * 100
         self.pcsCoords = AODict(zip(keys, pcsvalues))
         
-        if debug:
-            print "\t ncl2 value name is %s" % self.rootName
-            for key, value in self.pcsCoords.iteritems():
-                print "\t ncl2 value PCS [%s]: %s" % (key, value)
-        
         deviceCoords = []
         if deviceCoordCount > 0:
             for i in xrange(38, 38+deviceCoordCount*2, 2):
-                if debug: print "parsing device coordinate value"
                 deviceCoords.append(
                     uInt16Number(
                         valueData[i:i+2]))
@@ -2388,16 +2376,10 @@ class NamedColor2Type(ICCProfileTag, ADict):
             "suffix": unicode(Text(tagData[52:84].strip('\0')), 'latin-1'),
         })
         
-        if debug:
-            print "ncl2 tag with %s colors (%s device values each)" % (
-                colorCount, deviceCoordCount)
-        
         if colorCount > 0:
             for i in xrange(84,
                 (stride*colorCount),
                 stride):
-                if debug:
-                    print "\t ncl2 chunk at offset %s" % i
                 values.append(
                     NamedColor2Value(
                         tagData[i:i+stride],
