@@ -35,7 +35,7 @@ from encoding import get_encodings
 from meta import version
 from ordereddict import OrderedDict
 try:
-    from log import safe_print
+    from log import safe_plint
 except ImportError:
     from safe_print import safe_print
 from util_decimal import float2dec
@@ -314,6 +314,9 @@ tags = {"A2B0": "Device to PCS: Intent 0",
         "lumi": "Luminance",
         "meas": "Measurement type",
         "mmod": "Make and model",
+        
+        "ncl2": "Named color (2)",
+        
         "rTRC": "Red tone response curve",
         "rXYZ": "Red matrix column",
         "targ": "Characterization target",
@@ -2296,6 +2299,113 @@ class chromaticAdaptionTag(colormath.Matrix3x3, s15Fixed16ArrayType):
         return locals()
 
 
+class NamedColor2Value(object):
+    def __init__(self, valueData, deviceCoordCount, pcs="XYZ", prefix=u"", suffix=u""):
+        if debug:
+            print "\t ncl2 %s value (%s device coords)" % (pcs, deviceCoordCount)
+        self.rootName = unicode(Text(valueData[0:32].strip('\0')), 'latin-1')
+        self.prefix = prefix
+        self.suffix = suffix
+        
+        pcsvalues = [
+            uInt16Number(valueData[32:34]),
+            uInt16Number(valueData[34:36]),
+            uInt16Number(valueData[36:38])]
+        
+        if debug:
+            print "\t ncl2 value has name %s" % self.rootName
+            for i in xrange(len(pcsvalues)):
+                print "\t ncl2 %s value [%s]: %s" % (pcs, i, pcsvalues[i])
+        
+        for i, pcsvalue in enumerate(pcsvalues):
+            if pcs == "Lab":
+                keys = ["L", "a", "b"]
+                if i == 0:
+                    # L* range 0..100
+                    pcsvalues[i] = pcsvalue / 65536.0 * 100
+                else:
+                    # a, b range -128..127
+                    pcsvalues[i] = -128 + (pcsvalue / 65536.0 * 255)
+            elif pcs == "XYZ":
+                # X, Y, Z range 0..100
+                keys = ["X", "Y", "Z"]
+                pcsvalues[i] = pcsvalue / 32768.0 * 100
+        self.pcsCoords = AODict(zip(keys, pcsvalues))
+        
+        if debug:
+            print "\t ncl2 value name is %s" % self.rootName
+            for key, value in self.pcsCoords.iteritems():
+                print "\t ncl2 value PCS [%s]: %s" % (key, value)
+        
+        deviceCoords = []
+        if deviceCoordCount > 0:
+            for i in xrange(38, 38+deviceCoordCount*2, 2):
+                if debug: print "parsing device coordinate value"
+                deviceCoords.append(
+                    uInt16Number(
+                        valueData[i:i+2]))
+        self.deviceCoords = tuple(deviceCoords)
+    
+    def __repr__(self):
+        pcs = []
+        dev = []
+        for key, value in self.pcsCoords.iteritems():
+            pcs.append("%s=%s" % (str(key), str(value)))
+        for value in self.deviceCoords:
+            dev.append("%s" % value)
+        return "%s({%s}, [%s])" % (
+                                self.__class__.__name__,
+                                ", ".join(pcs),
+                                ", ".join(dev))
+
+
+class NamedColor2ValueTuple(tuple):
+    
+    REPR_OUTPUT_SIZE = 10
+    
+    def __repr__(self):
+        data = list(self[:self.REPR_OUTPUT_SIZE + 1])
+        if len(data) > self.REPR_OUTPUT_SIZE:
+            data[-1] = "...(remaining elements truncated)..."
+        return repr(data)
+    
+
+class NamedColor2Type(ICCProfileTag, ADict):
+
+    def __init__(self, tagData=None, tagSignature=None, pcs=None):
+        
+        ICCProfileTag.__init__(self, tagData, tagSignature)
+        colorCount = uInt32Number(tagData[12:16])
+        deviceCoordCount = uInt32Number(tagData[16:20])
+        stride = 38 + 2*deviceCoordCount
+        values = []
+        
+        self.update({
+            "vendorData": tagData[8:12],
+            "colorCount": colorCount,
+            "deviceCoordsPerColor": deviceCoordCount,
+            "prefix": unicode(Text(tagData[20:52].strip('\0')), 'latin-1'),
+            "suffix": unicode(Text(tagData[52:84].strip('\0')), 'latin-1'),
+        })
+        
+        if debug:
+            print "ncl2 tag with %s colors (%s device values each)" % (
+                colorCount, deviceCoordCount)
+        
+        if colorCount > 0:
+            for i in xrange(84,
+                (stride*colorCount),
+                stride):
+                if debug:
+                    print "\t ncl2 chunk at offset %s" % i
+                values.append(
+                    NamedColor2Value(
+                        tagData[i:i+stride],
+                        deviceCoordCount,
+                        pcs=pcs, prefix=self.prefix, suffix=self.suffix))
+        self.values = NamedColor2ValueTuple(values)
+
+
 tagSignature2Tag = {
     "chad": chromaticAdaptionTag
 }
@@ -2310,6 +2420,9 @@ typeSignature2Type = {
     "meas": MeasurementType,
     "mluc": MultiLocalizedUnicodeType,  # ICC v4
     "mmod": MakeAndModelType,  # Apple private tag
+    
+    "ncl2": NamedColor2Type,
+    
     "sf32": s15Fixed16ArrayType,
     "sig ": SignatureType,
     "text": TextType,
@@ -2580,7 +2693,7 @@ class ICCProfile:
                                     tag = tagSignature2Tag[tagSignature](tagData, tagSignature)
                                 elif typeSignature in typeSignature2Type:
                                     args = tagData, tagSignature
-                                    if typeSignature == "clrt":
+                                    if typeSignature in ("clrt", "ncl2"):
                                         args += (self.connectionColorSpace, )
                                     elif typeSignature == "XYZ ":
                                         args += (self, )
