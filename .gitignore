@@ -22,14 +22,14 @@
 
 Icon*
 
-bin/
+bin
 etc/
 build/
 dist/
 sdist/
 include/
 instance/Django-*
-lib/
+lib
 logs/
 man/
 share/
