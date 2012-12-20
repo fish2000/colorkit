@@ -2305,6 +2305,7 @@ class NamedColor2Value(object):
         self.rootName = unicode(Text(valueData[0:32].strip('\0')), 'latin-1')
         self.prefix = prefix
         self.suffix = suffix
+        self.valueData = valueData
         
         pcsvalues = [
             uInt16Number(valueData[32:34]),
@@ -2324,7 +2325,7 @@ class NamedColor2Value(object):
                 # X, Y, Z range 0..100
                 keys = ["X", "Y", "Z"]
                 pcsvalues[i] = pcsvalue / 32768.0 * 100
-        self.pcsCoords = AODict(zip(keys, pcsvalues))
+        self.pcs = AODict(zip(keys, pcsvalues))
         
         deviceCoords = []
         if deviceCoordCount > 0:
@@ -2332,23 +2333,43 @@ class NamedColor2Value(object):
                 deviceCoords.append(
                     uInt16Number(
                         valueData[i:i+2]))
-        self.deviceCoords = tuple(deviceCoords)
+        self.device = tuple(deviceCoords)
+    
+    @property
+    def name(self):
+        return self.prefix + self.rootName + self.suffix
     
     def __repr__(self):
         pcs = []
         dev = []
-        for key, value in self.pcsCoords.iteritems():
+        for key, value in self.pcs.iteritems():
             pcs.append("%s=%s" % (str(key), str(value)))
-        for value in self.deviceCoords:
+        for value in self.device:
             dev.append("%s" % value)
-        return "%s({%s}, [%s])" % (
+        return "%s(%s, {%s}, [%s])" % (
                                 self.__class__.__name__,
+                                self.name,
                                 ", ".join(pcs),
                                 ", ".join(dev))
+    
+    @Property
+    def tagData():
+        doc = """
+        Return raw tag data.
+        """
+        
+        def fget(self):
+            return self.valueData
+        
+        def fset(self, tagData):
+            pass
+        
+        return locals()
 
 
 class NamedColor2ValueTuple(tuple):
     
+    __slots__ = ()
     REPR_OUTPUT_SIZE = 10
     
     def __repr__(self):
@@ -2356,6 +2377,21 @@ class NamedColor2ValueTuple(tuple):
         if len(data) > self.REPR_OUTPUT_SIZE:
             data[-1] = "...(remaining elements truncated)..."
         return repr(data)
+    
+    @Property
+    def tagData():
+        doc = """
+        Return raw tag data.
+        """
+        
+        def fget(self):
+            return "".join([val.tagData for val in self])
+        
+        def fset(self, tagData):
+            pass
+        
+        return locals()
+    
     
 
 class NamedColor2Type(ICCProfileTag, ADict):
@@ -2371,7 +2407,7 @@ class NamedColor2Type(ICCProfileTag, ADict):
         self.update({
             "vendorData": tagData[8:12],
             "colorCount": colorCount,
-            "deviceCoordsPerColor": deviceCoordCount,
+            "deviceCoordCount": deviceCoordCount,
             "prefix": unicode(Text(tagData[20:52].strip('\0')), 'latin-1'),
             "suffix": unicode(Text(tagData[52:84].strip('\0')), 'latin-1'),
         })
@@ -2385,7 +2421,28 @@ class NamedColor2Type(ICCProfileTag, ADict):
                         tagData[i:i+stride],
                         deviceCoordCount,
                         pcs=pcs, prefix=self.prefix, suffix=self.suffix))
-        self.values = NamedColor2ValueTuple(values)
+        self.colorValues = NamedColor2ValueTuple(values)
+    
+    @Property
+    def tagData():
+        doc = """
+        Return raw tag data.
+        """
+        
+        def fget(self):
+            tagData = ["ncl2", "\0" * 4,
+                self.vendorData,
+                uInt32Number_tohex(self.colorCount),
+                uInt32Number_tohex(self.deviceCoordCount)]
+                #self.prefix, self.suffix]
+            
+            tagData.append(self.colorValues.tagData)
+            return "".join(tagData)
+        
+        def fset(self, tagData):
+            pass
+        
+        return locals()
 
 
 tagSignature2Tag = {
