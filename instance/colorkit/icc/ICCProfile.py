@@ -1,4 +1,13 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+""" ICCProfile.py
+
+Adapted from the excellent ICCProfile python class by Florian Höch,
+which is a part of the source of dispcalGUI:
+
+    http://dispcalgui.hoech.net/
+
+Copyright (c) 2012 OST, LLC. """
 
 from hashlib import md5
 import binascii
@@ -2444,6 +2453,8 @@ class NamedColor2Type(ICCProfileTag, OrderedDict):
             keys = ["L", "a", "b"]
         elif self._pcsname == "XYZ":
             keys = ["X", "Y", "Z"]
+        else:
+            keys = ["X", "Y", "Z"]
         
         if not set(pcsCoordinates.keys()).issuperset(set(keys)):
             raise ICCProfileInvalidError("Can't add namedColor2 without all 3 PCS coordinates: '%s'" %
@@ -2463,6 +2474,8 @@ class NamedColor2Type(ICCProfileTag, OrderedDict):
         nc2value.device = tuple(copy(deviceCoordinates))
         nc2value.pcs = AODict(copy(pcsCoordinates))
         pcsvalues = list()
+        
+        print nc2value.pcs
         
         for idx, key in enumerate(keys):
             val = nc2value.pcs[key]
