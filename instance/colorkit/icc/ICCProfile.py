@@ -1,4 +1,13 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+""" ICCProfile.py
+
+Adapted from the excellent ICCProfile python class by Florian Höch,
+which is a part of the source of dispcalGUI:
+
+    http://dispcalgui.hoech.net/
+
+Copyright (c) 2012 OST, LLC. """
 
 from hashlib import md5
 import binascii
